@@ -25,6 +25,11 @@ module Nomad
       return json.map { |item| JobItem.decode(item) }
     end
 
+    def read_plan contents
+      contents.is_a?(Hash) ? JSON.fast_generate(contents) : contents
+    end
+
+
     # Create the job based on the given contents. The contents can be a string
     # or a hash.
     #
@@ -35,7 +40,7 @@ module Nomad
     #
     # @return [JobCreate]
     def create(contents, **options)
-      body = contents.is_a?(Hash) ? JSON.fast_generate(contents) : contents
+      body = read_plan contents
       json = client.post("/v1/jobs", body, options)
       return JobCreate.decode(json)
     end
@@ -48,6 +53,16 @@ module Nomad
     def read(name, **options)
       json = client.get("/v1/job/#{CGI.escape(name)}", options)
       return JobVersion.decode(json)
+    end
+
+    def plan(contents, **options)
+      body = read_plan contents
+      plan_data = JSON.parse body
+      plan_data["Diff"] = true
+      body = JSON.fast_generate(plan_data)
+      id = "#{CGI.escape(plan_data["Job"]["ID"])}"
+      json = client.put("/v1/job/#{id}/plan", body, options)
+      return JobPlan.decode(json)
     end
   end
 
@@ -1029,5 +1044,77 @@ module Nomad
     #   The dispatch payload file.
     #   @return [String]
     field :File, as: :file, load: :string_as_nil
+  end
+
+  class Diff < Response
+    field :Fields, as: :fields, load: ->(item) {
+      item.map { |i| FieldDiff.decode(i) }
+    }
+    field :Objects, as: :objects, load: ->(item) {
+      item.map { |i| ObjectDiff.decode(i) }
+    }
+    field :TaskGroups, as: :task_groups, load: ->(item) {
+      item.map { |i| TaskGroupDiff.decode(i) }
+    }
+  end
+
+  class ObjectDiff < Response
+    field :Annotations, as: :annotations, load: :array_of_strings
+    field :Fields, as: :fields, load: ->(item) {
+      item.map { |i| FieldDiff.decode(i) }
+    }
+    field :Objects, as: :objects, load: ->(item) {
+      return nil if item.nil?
+      item.map { |i| ObjectDiff.decode(i) }
+    }
+    field :Name, as: :name
+    field :Type, as: :type
+  end
+
+  class TaskGroupDiff < Response
+    field :Fields, as: :fields, load: ->(item) {
+      item.map { |i| FieldDiff.decode(i) }
+    }
+    field :Objects, as: :objects, load: ->(item) {
+      item.map { |i| ObjectDiff.decode(i) }
+    }
+    field :Tasks, as: :tasks, load: ->(item) {
+      item.map { |i| TaskDiff.decode(i) }
+    }
+
+  end
+
+  class TaskDiff < Response
+    field :Name, as: :name
+    field :Annotations, as: :annotations, load: :array_of_strings
+    field :Fields, as: :fields, load: ->(item) {
+      item.map { |i| FieldDiff.decode(i) }
+    }
+    field :Objects, as: :objects, load: ->(item) {
+      item.map { |i| ObjectDiff.decode(i) }
+    }
+  end
+
+  class FieldDiff < Response
+    field :Annotations, as: :annotations, load: :array_of_strings
+    field :Name, as: :name
+    field :Old, as: :old
+    field :New, as: :new
+    field :Type, as: :type
+  end
+
+  class JobPlan < Response
+    # @!attribute [r] job_modify_index
+    #   The job job_modify_index.
+    #   @return [Integer]
+    field :JobModifyIndex, as: :job_modify_index
+
+    # @!attribute [r] diff
+    #   The planned difference
+    #   @return [Diff]
+    field :Diff, as: :diff, load: ->(item) {
+      Diff.decode(item)
+    }
+
   end
 end

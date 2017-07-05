@@ -173,5 +173,176 @@ module Nomad
         expect(job.version).to be_a(Integer)
       end
     end
+
+    describe "#plan" do
+      it "plans a new job" do
+        job = JSON.parse(File.read(File.expand_path("../../../support/jobs/job.json", __FILE__)))
+        job["Job"]["ID"] = "plan-job"
+        job["Job"]["Name"] = "plan-job"
+        result = subject.plan(JSON.fast_generate(job))
+        expect(result).to be_a(JobPlan)
+        expect(result.job_modify_index).to be_a(Integer)
+        # This is a creation so there is no diff
+        expect(result.diff).to be_a(Diff)
+
+        fields_diff = result.diff.fields
+        expect(fields_diff).to be_a(Array)
+        expect(fields_diff.length).to be(7)
+
+        # It's a new Job so all "old" will be "" and
+        # every type will be "added"
+        # Also for fields we don't expect annotations
+        7.times do |i|
+          expect(fields_diff[i]).to be_a(FieldDiff)
+          expect(fields_diff[i].annotations).to eq([])
+          expect(fields_diff[i].old).to eq('')
+          expect(fields_diff[i].type).to eq('Added')
+        end
+
+        expect(fields_diff[0].name).to eq('AllAtOnce')
+        expect(fields_diff[0].new).to eq('true')
+        expect(fields_diff[1].name).to eq('Meta[foo]')
+        expect(fields_diff[1].new).to eq('bar')
+        expect(fields_diff[2].name).to eq('Name')
+        expect(fields_diff[2].new).to eq('plan-job')
+        expect(fields_diff[3].name).to eq('Priority')
+        expect(fields_diff[3].new).to eq('50')
+        expect(fields_diff[4].name).to eq('Region')
+        expect(fields_diff[4].new).to eq('global')
+        expect(fields_diff[5].name).to eq('Type')
+        expect(fields_diff[5].new).to eq('service')
+        expect(fields_diff[6].name).to eq('VaultToken')
+        expect(fields_diff[6].new).to eq('root')
+
+        object_diffs = result.diff.objects
+        expect(object_diffs).to be_a(Array)
+        expect(object_diffs.length).to be(2)
+        2.times do |i|
+          expect(object_diffs[i]).to be_a(ObjectDiff)
+          expect(object_diffs[i].type).to eq('Added')
+        end
+
+        datacenter_diff = object_diffs[0]
+        expect(datacenter_diff.name).to eq('Datacenters')
+        datacenter_fields = datacenter_diff.fields
+        expect(datacenter_fields.length).to eq(1)
+        expect(datacenter_fields[0]).to be_a(FieldDiff)
+        expect(datacenter_fields[0].name).to eq('Datacenters')
+        expect(datacenter_fields[0].new).to eq('dc1')
+        expect(datacenter_fields[0].old).to eq('')
+        expect(datacenter_fields[0].annotations).to eq([])
+        expect(datacenter_fields[0].type).to eq('Added')
+
+        update_diff = object_diffs[1]
+        expect(update_diff.name).to eq('Update')
+        update_fields = update_diff.fields
+        expect(update_fields.length).to eq(2)
+        expect(update_fields[0].name).to eq('MaxParallel')
+        expect(update_fields[0].new).to eq('0')
+        expect(update_fields[0].old).to eq('')
+        expect(update_fields[0].type).to eq('Added')
+        expect(update_fields[0].annotations).to eq([])
+
+        expect(update_fields[1].name).to eq('Stagger')
+        expect(update_fields[1].new).to eq('0')
+        expect(update_fields[1].old).to eq('')
+        expect(update_fields[1].type).to eq('Added')
+        expect(update_fields[1].annotations).to eq([])
+
+        task_groups_diff = result.diff.task_groups
+        expect(task_groups_diff).to be_a(Array)
+        expect(task_groups_diff.length).to be(1)
+        expect(task_groups_diff.first).to be_a(TaskGroupDiff)
+
+        tasks_diff = result.diff.task_groups.first.tasks
+
+        expect(tasks_diff.length).to be(1)
+        task_diff = tasks_diff[0]
+        expect(task_diff).to be_a(TaskDiff)
+        expect(task_diff.annotations.length).to eq(1)
+        expect(task_diff.annotations).to eq(['forces create'])
+        expect(task_diff.name).to eq('task')
+
+
+        task_diff_fields = task_diff.fields
+        expect(task_diff_fields).to be_a(Array)
+        expect(task_diff_fields.length).to eq(5)
+        5.times do |i|
+          expect(task_diff_fields[i].annotations).to eq([])
+          expect(task_diff_fields[i].old).to eq('')
+          expect(task_diff_fields[i].type).to eq('Added')
+        end
+        expect(task_diff_fields[0].name).to eq('Driver')
+        expect(task_diff_fields[0].new).to eq('raw_exec')
+        expect(task_diff_fields[1].name).to eq('Env[key]')
+        expect(task_diff_fields[1].new).to eq('value')
+        expect(task_diff_fields[2].name).to eq('KillTimeout')
+        expect(task_diff_fields[2].new).to eq('250000000')
+        expect(task_diff_fields[3].name).to eq('Leader')
+        expect(task_diff_fields[3].new).to eq('false')
+        expect(task_diff_fields[4].name).to eq('Meta[zane]')
+        expect(task_diff_fields[4].new).to eq('willow')
+
+        task_diff_objects = task_diff.objects
+        expect(task_diff_objects).to be_a(Array)
+        expect(task_diff_objects.length).to eq(8)
+
+        config_object = task_diff.objects[0]
+        expect(config_object).to be_a(ObjectDiff)
+        expect(config_object.name).to eq('Config')
+        expect(config_object.type).to eq('Added')
+        expect(config_object.fields).to be_a(Array)
+        expect(config_object.fields.length).to be(2)
+
+        2.times do |i|
+          expect(config_object.fields[i].annotations).to eq([])
+          expect(config_object.fields[i].old).to eq('')
+          expect(config_object.fields[i].type).to eq('Added')
+        end
+
+        expect(config_object.fields[0].name).to eq('args[0]')
+        expect(config_object.fields[0].new).to eq('1000')
+        expect(config_object.fields[1].name).to eq('command')
+        expect(config_object.fields[1].new).to eq('/bin/sleep')
+
+        resources_object = task_diff.objects[1]
+        expect(resources_object).to be_a(ObjectDiff)
+        expect(resources_object.name).to eq('Resources')
+        expect(resources_object.type).to eq('Added')
+        expect(resources_object.fields).to be_a(Array)
+        expect(resources_object.fields.length).to be(4)
+        4.times do |i|
+          expect(resources_object.fields[i].annotations).to eq([])
+          expect(resources_object.fields[i].old).to eq('')
+          expect(resources_object.fields[i].type).to eq('Added')
+        end
+        expect(resources_object.fields[0].name).to eq('CPU')
+        expect(resources_object.fields[0].new).to eq('20')
+        expect(resources_object.fields[1].name).to eq('DiskMB')
+        expect(resources_object.fields[1].new).to eq('0')
+        expect(resources_object.fields[2].name).to eq('IOPS')
+        expect(resources_object.fields[2].new).to eq('0')
+        expect(resources_object.fields[3].name).to eq('MemoryMB')
+        expect(resources_object.fields[3].new).to eq('12')
+
+        resources_nested_objects = resources_object.objects
+        expect(resources_nested_objects).to be_a(Array)
+        expect(resources_nested_objects.length).to be(1)
+
+        network_resource = resources_nested_objects[0]
+        expect(network_resource).to be_a(ObjectDiff)
+        expect(network_resource.name).to eq('Network')
+        expect(network_resource.type).to eq('Added')
+        expect(network_resource.fields[0].name).to eq('MBits')
+        expect(network_resource.fields[0].new).to eq('1')
+        expect(network_resource.fields[0].annotations).to eq([])
+        expect(network_resource.fields[0].old).to eq('')
+        expect(network_resource.fields[0].type).to eq('Added')
+
+        network_nested_objects = network_resource.objects
+        expect(network_nested_objects).to be_a(Array)
+        expect(network_nested_objects.length).to eq(1)
+      end
+    end
   end
 end
