@@ -1048,12 +1048,15 @@ module Nomad
 
   class Diff < Response
     field :Fields, as: :fields, load: ->(item) {
+      return nil if item.nil?
       item.map { |i| FieldDiff.decode(i) }
     }
     field :Objects, as: :objects, load: ->(item) {
+      return nil if item.nil?
       item.map { |i| ObjectDiff.decode(i) }
     }
     field :TaskGroups, as: :task_groups, load: ->(item) {
+      return nil if item.nil?
       item.map { |i| TaskGroupDiff.decode(i) }
     }
   end
@@ -1072,13 +1075,18 @@ module Nomad
   end
 
   class TaskGroupDiff < Response
+    field :Name, as: :name
+    field :Type, as: :type
     field :Fields, as: :fields, load: ->(item) {
+      return nil unless item
       item.map { |i| FieldDiff.decode(i) }
     }
     field :Objects, as: :objects, load: ->(item) {
+      return nil unless item
       item.map { |i| ObjectDiff.decode(i) }
     }
     field :Tasks, as: :tasks, load: ->(item) {
+      return nil unless item
       item.map { |i| TaskDiff.decode(i) }
     }
 
@@ -1087,10 +1095,13 @@ module Nomad
   class TaskDiff < Response
     field :Name, as: :name
     field :Annotations, as: :annotations, load: :array_of_strings
+    field :Type, as: :type
     field :Fields, as: :fields, load: ->(item) {
+      return nil unless item
       item.map { |i| FieldDiff.decode(i) }
     }
     field :Objects, as: :objects, load: ->(item) {
+      return nil unless item
       item.map { |i| ObjectDiff.decode(i) }
     }
   end
@@ -1113,6 +1124,7 @@ module Nomad
     #   The planned difference
     #   @return [Diff]
     field :Diff, as: :diff, load: ->(item) {
+      return nil unless item
       Diff.decode(item)
     }
 
